@@ -4,7 +4,6 @@ import { isValid, isUndef, clone } from '@formily/shared'
 import { ButtonProps } from '@alifd/next/lib/button'
 import { ArrayField } from '@formily/core'
 import { useField, useFieldSchema, Schema, JSXComponent } from '@formily/react'
-import { SortableHandle } from 'react-sortable-hoc'
 import {
   usePrefixCls,
   PlusOutlinedIcon,
@@ -134,16 +133,20 @@ ArrayBase.Item = ({ children, ...props }) => {
   return <ItemContext.Provider value={props}>{children}</ItemContext.Provider>
 }
 
-const SortHandle = SortableHandle((props: any) => {
+export const SortHandleContext = createContext({})
+
+const SortHandle = (props: any) => {
   const prefixCls = usePrefixCls('formily-array-base')
+  const sortable = useContext(SortHandleContext)
   return (
     <MenuOutlinedIcon
       {...props}
+      {...sortable}
       className={cls(`${prefixCls}-sort-handle`, props.className)}
       style={{ ...props.style }}
     />
   )
-}) as any
+}
 
 ArrayBase.SortHandle = () => {
   const array = useArray()

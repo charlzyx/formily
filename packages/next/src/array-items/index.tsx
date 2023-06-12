@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import { ArrayField } from '@formily/core'
 import {
   useField,
@@ -7,16 +7,12 @@ import {
   RecursionField,
 } from '@formily/react'
 import cls from 'classnames'
-import {
-  SortableContainer,
-  SortableElement,
-  SortableContainerProps,
-  SortableElementProps,
-} from 'react-sortable-hoc'
+
 import { ISchema } from '@formily/json-schema'
 import { usePrefixCls } from '../__builtins__'
 import { ArrayBase, ArrayBaseMixins, IArrayBaseProps } from '../array-base'
-
+import { DndProvider, SortableItem } from '../array-base/DndKitSortable'
+import { DragEndEvent } from '@dnd-kit/core'
 type ComposedArrayItems = React.FC<
   React.PropsWithChildren<
     React.HTMLAttributes<HTMLDivElement> & IArrayBaseProps
@@ -29,34 +25,6 @@ type ComposedArrayItems = React.FC<
       }
     >
   }
-
-const SortableItem: React.FC<
-  React.PropsWithChildren<React.HTMLAttributes<HTMLDivElement>> &
-    SortableElementProps
-> = SortableElement(
-  (props: React.PropsWithChildren<React.HTMLAttributes<HTMLDivElement>>) => {
-    const prefixCls = usePrefixCls('formily-array-items')
-    return (
-      <div {...props} className={cls(`${prefixCls}-item`, props.className)}>
-        {props.children}
-      </div>
-    )
-  }
-) as any
-
-const SortableList: React.FC<
-  React.PropsWithChildren<React.HTMLAttributes<HTMLDivElement>> &
-    SortableContainerProps
-> = SortableContainer(
-  (props: React.PropsWithChildren<React.HTMLAttributes<HTMLDivElement>>) => {
-    const prefixCls = usePrefixCls('formily-array-items')
-    return (
-      <div {...props} className={cls(`${prefixCls}-list`, props.className)}>
-        {props.children}
-      </div>
-    )
-  }
-) as any
 
 const isAdditionComponent = (schema: ISchema) => {
   return schema['x-component']?.indexOf('Addition') > -1
@@ -74,11 +42,22 @@ const useAddition = () => {
 
 export const ArrayItems: ComposedArrayItems = observer((props) => {
   const field = useField<ArrayField>()
+  const ref = useRef<HTMLDivElement>()
   const prefixCls = usePrefixCls('formily-array-items')
   const schema = useFieldSchema()
   const addition = useAddition()
   const { onAdd, onCopy, onRemove, onMoveDown, onMoveUp } = props
   const dataSource = Array.isArray(field.value) ? field.value : []
+
+  const keyList = dataSource.map((_, i) => i.toString())
+
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (active.id !== over?.id) {
+      field.move(active.id as number, over.id as number)
+    }
+  }
+
   return (
     <ArrayBase
       onAdd={onAdd}
@@ -89,16 +68,14 @@ export const ArrayItems: ComposedArrayItems = observer((props) => {
     >
       <div
         {...props}
+        ref={ref}
         onChange={() => {}}
         className={cls(prefixCls, props.className)}
       >
-        <SortableList
-          useDragHandle
-          lockAxis="y"
-          helperClass={`${prefixCls}-sort-helper`}
-          onSortEnd={({ oldIndex, newIndex }) => {
-            field.move(oldIndex, newIndex)
-          }}
+        <DndProvider
+          container={ref.current}
+          keyList={keyList}
+          onDragEnd={onDragEnd}
         >
           {dataSource?.map((item, index) => {
             const items = Array.isArray(schema.items)
@@ -110,7 +87,12 @@ export const ArrayItems: ComposedArrayItems = observer((props) => {
                 index={index}
                 record={() => field.value?.[index]}
               >
-                <SortableItem key={`item-${index}`} index={index}>
+                <SortableItem
+                  wrapper="div"
+                  className={`${prefixCls}-item`}
+                  key={`item-${index}`}
+                  rowKey={index}
+                >
                   <div className={`${prefixCls}-item-inner`}>
                     <RecursionField schema={items} name={index} />
                   </div>
@@ -118,7 +100,7 @@ export const ArrayItems: ComposedArrayItems = observer((props) => {
               </ArrayBase.Item>
             )
           })}
-        </SortableList>
+        </DndProvider>
         {addition}
       </div>
     </ArrayBase>

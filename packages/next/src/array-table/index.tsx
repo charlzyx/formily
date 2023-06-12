@@ -5,10 +5,13 @@ import React, {
   useEffect,
   createContext,
   useContext,
+  useCallback,
 } from 'react'
+import { useWhyDidYouUpdate } from 'ahooks'
 import { Table, Pagination, Select, Badge } from '@alifd/next'
 import { PaginationProps } from '@alifd/next/lib/pagination'
 import { TableProps, ColumnProps } from '@alifd/next/lib/table'
+import RowComponent from '@alifd/next/lib/table/base/row'
 import { SelectProps } from '@alifd/next/lib/select'
 import cls from 'classnames'
 import { GeneralField, FieldDisplayTypes, ArrayField } from '@formily/core'
@@ -23,6 +26,28 @@ import { isArr, isBool, isFn } from '@formily/shared'
 import { Schema } from '@formily/json-schema'
 import { usePrefixCls } from '../__builtins__'
 import { ArrayBase, ArrayBaseMixins, IArrayBaseProps } from '../array-base'
+import { DndProvider, SortableTableRow } from '../array-base/DndKitSortable'
+import { DragEndEvent } from '@dnd-kit/core'
+
+// const SortableRow =React.memo((props: any) => {
+//   const sortable = useSortableTableRow(props.rowIndex)
+//   const  {attributes, computedStyle, id, listeners, setNodeRef} = sortable;
+//   useWhyDidYouUpdate("SortableRow", sortable)
+
+//   useEffect(() => {
+//     const ref = props?.container?.querySelector(`tr[data-sort-index="${id}"]`);
+//     console.log("aaaa")
+//     setNodeRef(ref)
+//   }, [])
+
+//   return <RowComponent {...props}
+//     key={id.toString()}
+//     id={id.toString()}
+//     data-sort-index={id}
+//     style={{...computedStyle, ...props.style}}
+//     {...listeners}
+//  ></RowComponent>
+// })
 
 interface ObservableColumnSource {
   field: GeneralField
@@ -306,6 +331,45 @@ export const ArrayTable: ComposedArrayTable = observer(
     const { onAdd, onCopy, onRemove, onMoveDown, onMoveUp } = props
     const addition = useAddition()
 
+    const defaultRowKey = useCallback(
+      (record: any) => {
+        if (props.primaryKey) {
+          return record[props.primaryKey] as React.Key
+        } else {
+          return dataSource.indexOf(record)
+        }
+      },
+      [props.primaryKey, dataSource]
+    )
+    const WrapperComp = useCallback((props: any) => {
+      const keyList = dataSource.map((record) =>
+        defaultRowKey(record).toString()
+      )
+      const onDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event
+        if (!active || !over) return
+        if (active.id !== over?.id) {
+          const isNumber = /\d/.test(over.id as string)
+          const from = isNumber
+            ? (active.id as number)
+            : keyList.findIndex((x) => x == active.id)
+          const to = isNumber
+            ? (over.id as number)
+            : keyList.findIndex((x) => x == over.id)
+          field.move(from, to)
+        }
+      }
+      return (
+        <DndProvider
+          container={ref.current}
+          keyList={keyList}
+          onDragEnd={onDragEnd}
+        >
+          {props.children}
+        </DndProvider>
+      )
+    }, [])
+
     return (
       <ArrayTablePagination {...pagination} dataSource={dataSource}>
         {(dataSource, pager) => (
@@ -317,12 +381,26 @@ export const ArrayTable: ComposedArrayTable = observer(
               onMoveUp={onMoveUp}
               onMoveDown={onMoveDown}
             >
-              <Table
-                size="small"
-                {...omit(props, ['value', 'onChange', 'pagination'])}
-                columns={columns}
-                dataSource={dataSource}
-              />
+              <WrapperComp>
+                <Table
+                  size="small"
+                  {...omit(props, ['value', 'onChange', 'pagination'])}
+                  columns={columns}
+                  dataSource={dataSource}
+                  components={{
+                    Row: React.forwardRef((props, ref) => {
+                      return (
+                        <SortableTableRow
+                          rowIndex={props.rowIndex}
+                          container={ref.current}
+                        >
+                          <RowComponent ref={ref} {...props}></RowComponent>
+                        </SortableTableRow>
+                      )
+                    }),
+                  }}
+                />
+              </WrapperComp>
               <div style={{ marginTop: 5, marginBottom: 5 }}>{pager}</div>
               {sources.map((column, key) => {
                 //专门用来承接对Column的状态管理
