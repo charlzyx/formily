@@ -118,10 +118,16 @@ export class ArrayField<
       const fromItem = this.value[fromIndex]
       this.value.splice(fromIndex, 1)
       this.value.splice(toIndex, 0, fromItem)
+
+      // 注释部分能够提高大数据性能， 但数据 observer 语意变更
+      // const value = this.value.slice();
+      // value.splice(fromIndex, 1)
+      // value.splice(toIndex, 0, fromItem)
       exchangeArrayState(this, {
         fromIndex,
         toIndex,
       })
+      // this.value = value;
       return this.onInput(this.value)
     })
   }

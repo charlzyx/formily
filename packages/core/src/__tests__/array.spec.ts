@@ -1,5 +1,7 @@
 import { createForm } from '../'
 import {
+  onFieldChange,
+  onFieldReact,
   onFieldValueChange,
   onFormInitialValuesChange,
   onFormValuesChange,
@@ -58,6 +60,7 @@ test('array field methods', () => {
 
 test('array field children state exchanges', () => {
   //注意：插入新节点，如果指定位置有节点，会丢弃，需要重新插入节点，主要是为了防止上一个节点状态对新节点状态产生污染
+
   const form = attach(createForm())
   const array = attach(
     form.createArrayField({
@@ -83,6 +86,7 @@ test('array field children state exchanges', () => {
       basePath: 'array.1',
     })
   )
+
   expect(array.value).toEqual([{ value: 11 }, { value: 22 }])
   expect(form.query('array.0.value').get('value')).toEqual(11)
   expect(form.query('array.1.value').get('value')).toEqual(22)
@@ -134,11 +138,13 @@ test('array field children state exchanges', () => {
   expect(form.query('array.1.value').get('value')).toEqual(44)
   expect(form.query('array.2.value').get('value')).toEqual(55)
   array.move(0, 2)
+
   expect(array.value).toEqual([{ value: 44 }, { value: 55 }, { value: 33 }])
   expect(form.query('array.0.value').get('value')).toEqual(44)
   expect(form.query('array.1.value').get('value')).toEqual(55)
   expect(form.query('array.2.value').get('value')).toEqual(33)
   array.move(2, 0)
+
   expect(array.value).toEqual([{ value: 33 }, { value: 44 }, { value: 55 }])
   expect(form.query('array.0.value').get('value')).toEqual(33)
   expect(form.query('array.1.value').get('value')).toEqual(44)
@@ -146,7 +152,28 @@ test('array field children state exchanges', () => {
 })
 
 test('array field move up/down then fields move', () => {
-  const form = attach(createForm())
+  const called = {
+    array: 0,
+    0: 0,
+    1: 0,
+    2: 0,
+    3: 0,
+    4: 0,
+  }
+  const form = attach(
+    createForm({
+      effects() {
+        onFieldChange('array', () => {
+          called.array++
+        })
+        onFieldChange('array.*', (field) => {
+          const index = /\d/.exec(field.address.toString())?.[0] || '-1'
+          called[index] = called[index] ? called[index] + 1 : 1
+          // console.log("-------array address", field.value, field.address.toString());
+        })
+      },
+    })
+  )
   const array = attach(
     form.createArrayField({
       name: 'array',
@@ -184,6 +211,12 @@ test('array field move up/down then fields move', () => {
   array.push({ value: '0' }, { value: '1' }, { value: '2' }, { value: '3' })
 
   array.move(0, 3)
+  expect(called[0]).toEqual(3)
+  expect(called[1]).toEqual(3)
+  expect(called[2]).toEqual(3)
+  expect(called[3]).toEqual(3)
+  expect(called[4]).toEqual(0)
+  expect(called.array).toEqual(1)
 
   // 1,2,3,0
   expect(form.fields['array.0.value']).toBe(line1)
@@ -192,7 +225,12 @@ test('array field move up/down then fields move', () => {
   expect(form.fields['array.3.value']).toBe(line0)
 
   array.move(3, 1)
-
+  expect(called[0]).toEqual(3)
+  expect(called[1]).toEqual(3 + 1)
+  expect(called[2]).toEqual(3 + 1)
+  expect(called[3]).toEqual(3 + 1)
+  expect(called[4]).toEqual(0)
+  expect(called.array).toEqual(1)
   // 1,0,2,3
   expect(form.fields['array.0.value']).toBe(line1)
   expect(form.fields['array.1.value']).toBe(line0)
